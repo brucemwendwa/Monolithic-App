@@ -1,15 +1,20 @@
 from flask import Flask, json, jsonify, request
-from extensions import db
+from extensions import db, ma, jwt
 from flask_migrate import Migrate
 from controllers.book_controller import BookController
+from schemas.book_schema import book_schema, books_schema
 
 app = Flask(__name__)
 # Configure the database URI (replace with your actual database URI)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///books.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['JWT_SECRET_KEY'] = 'your_jwt_secret_key'  # Change this to a secure key in production
 
 # Initialize the database with the Flask app
 db.init_app(app)
+ma.init_app(app)
+jwt.init_app(app)
+
 
 # initialize Flask-Migrate with the app and database
 migrate = Migrate(app, db)
@@ -23,20 +28,20 @@ def home():
 @app.route('/books')
 def get_books():
     books = BookController.get_all_books()
-    # books is a LIST of Book objects — convert each one to a dict before jsonify
-    return jsonify([book.to_dict() for book in books])
+    return jsonify(books_schema.dump(books))
+
 
 @app.route('/books/<int:book_id>')
 def get_book(book_id):
     book = BookController.get_book_by_id(book_id)
     if book:
-        return jsonify(book.to_dict())
+        return jsonify(book_schema.dump(book))
     return jsonify({"error": "Book not found"}), 404
 
 @app.route('/books', methods=['POST'])
 def create_book():
     new_book = BookController.create_book(request.json)
-    return jsonify(new_book.to_dict()), 201
+    return jsonify(book_schema.dump(new_book)), 201
 
 @app.route('/books/<int:book_id>', methods=['PUT'])
 def update_book(book_id):
@@ -45,7 +50,7 @@ def update_book(book_id):
     updated_book = BookController.update_book(book_id, request.json)
 
     if updated_book:
-        return jsonify(updated_book.to_dict()), 200
+        return jsonify(book_schema.dump(updated_book)), 200
 
     return jsonify({"error": "Book not found"}), 404
 
